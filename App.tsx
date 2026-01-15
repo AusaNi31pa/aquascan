@@ -1,10 +1,3 @@
-import { NavigationContainer } from "@react-navigation/native";
-import { useState } from "react";
-import { ActivityIndicator, View } from "react-native";
-
-import AuthNavigator from "./src/navigation/AuthNavigator";
-import MainTabNavigator from "./src/navigation/MainTabNavigator";
-
 import {
   CormorantUnicase_600SemiBold,
   useFonts,
@@ -15,11 +8,14 @@ import {
   Inter_500Medium,
 } from "@expo-google-fonts/inter";
 import { TiltNeon_400Regular } from "@expo-google-fonts/tilt-neon";
+import { NavigationContainer } from "@react-navigation/native";
+import { ActivityIndicator, View } from "react-native";
+
+import { AuthProvider } from "./src/context/AuthContext";
+import { DataProvider } from "./src/context/DataContext";
+import RootNavigator from "./src/navigation/RootNavigator";
 
 export default function App() {
-  // 🔐 เริ่มต้น = ยังไม่ login
-  const [isLogin, setIsLogin] = useState(true);
-
   const [fontsLoaded] = useFonts({
     "Cormorant-SemiBold": CormorantUnicase_600SemiBold,
     "Felipa-Regular": Felipa_400Regular,
@@ -38,11 +34,11 @@ export default function App() {
 
   return (
     <NavigationContainer>
-      {isLogin ? (
-        <MainTabNavigator />   // ✅ login แล้ว → เห็น Navbar
-      ) : (
-        <AuthNavigator setIsLogin={setIsLogin} /> // 🔐 Welcome / Login / Register
-      )}
+      <AuthProvider>
+        <DataProvider>
+          <RootNavigator />
+        </DataProvider>
+      </AuthProvider>
     </NavigationContainer>
   );
 }

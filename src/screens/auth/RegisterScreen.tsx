@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import GradientBackground from "../../components/GradientBackground";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function RegisterScreen({ navigation }: any) {
   /* 🔐 State */
@@ -17,9 +18,9 @@ export default function RegisterScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { register, isLoading } = useAuth();
 
-  /* ✅ Register API */
+  /* ✅ Register Handler */
   const handleRegister = async () => {
     if (
       !fullName ||
@@ -37,41 +38,32 @@ export default function RegisterScreen({ navigation }: any) {
       return;
     }
 
+    if (password.length < 6) {
+      Alert.alert("Error", "Password must be at least 6 characters");
+      return;
+    }
+
     try {
-      setLoading(true);
+      const success = await register(fullName, username, email, password);
 
-      const response = await fetch(
-        "https://your-backend-url.com/api/register",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            fullName,
-            username,
-            email,
-            password,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        Alert.alert("Success", "Account created successfully", [
+      if (success) {
+        Alert.alert("Success", "Account created successfully!", [
           {
             text: "OK",
-            onPress: () => navigation.goBack(),
+            onPress: () => {
+              setFullName("");
+              setUsername("");
+              setEmail("");
+              setPassword("");
+              setConfirmPassword("");
+            },
           },
         ]);
       } else {
-        Alert.alert("Register Failed", data.message || "Something went wrong");
+        Alert.alert("Register Failed", "Username already exists or invalid data");
       }
-    } catch (error) {
-      Alert.alert("Error", "Cannot connect to server");
-    } finally {
-      setLoading(false);
+    } catch {
+      Alert.alert("Error", "An unexpected error occurred");
     }
   };
 
@@ -121,7 +113,7 @@ export default function RegisterScreen({ navigation }: any) {
         />
 
         {/* ✅ Gradient Button */}
-        <TouchableOpacity activeOpacity={0.85} onPress={handleRegister}>
+        <TouchableOpacity activeOpacity={0.85} onPress={handleRegister} disabled={isLoading}>
           <LinearGradient
             colors={["#FD691A", "#FFA160", "#FFD270"]}
             start={{ x: 0, y: 0 }}
@@ -129,7 +121,7 @@ export default function RegisterScreen({ navigation }: any) {
             style={styles.button}
           >
             <Text style={styles.buttonText}>
-              {loading ? "Loading..." : "Register"}
+              {isLoading ? "Loading..." : "Register"}
             </Text>
           </LinearGradient>
         </TouchableOpacity>

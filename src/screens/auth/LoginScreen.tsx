@@ -9,12 +9,13 @@ import {
   View,
 } from "react-native";
 import GradientBackground from "../../components/GradientBackground";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function LoginScreen({ navigation }: any) {
   /* 🔐 State สำหรับ Login */
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const { login, isLoading } = useAuth();
 
   /* ✅ ฟังก์ชัน Login */
   const handleLogin = async () => {
@@ -24,34 +25,24 @@ export default function LoginScreen({ navigation }: any) {
     }
 
     try {
-      setLoading(true);
+      const success = await login(username, password);
 
-      const response = await fetch(
-        "https://your-backend-url.com/api/login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+      if (success) {
+        // ✅ Login สำเร็จ → ไปหน้า Home
+        Alert.alert("Success", "Login successful!", [
+          {
+            text: "OK",
+            onPress: () => {
+              setUsername("");
+              setPassword("");
+            },
           },
-          body: JSON.stringify({
-            username,
-            password,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        // ✅ Login สำเร็จ → ไปหน้า Collection
-        navigation.navigate("Collection");
+        ]);
       } else {
-        Alert.alert("Login Failed", data.message || "Invalid credentials");
+        Alert.alert("Login Failed", "Invalid username or password");
       }
-    } catch (error) {
-      Alert.alert("Error", "Cannot connect to server");
-    } finally {
-      setLoading(false);
+    } catch {
+      Alert.alert("Error", "An unexpected error occurred");
     }
   };
 
@@ -91,7 +82,7 @@ export default function LoginScreen({ navigation }: any) {
         </View>
 
         {/* ✅ Login */}
-        <TouchableOpacity activeOpacity={0.85} onPress={handleLogin}>
+        <TouchableOpacity activeOpacity={0.85} onPress={handleLogin} disabled={isLoading}>
           <LinearGradient
             colors={["#FD691A", "#FFA160", "#FFD270"]}
             start={{ x: 0, y: 0 }}
@@ -99,7 +90,7 @@ export default function LoginScreen({ navigation }: any) {
             style={styles.button}
           >
             <Text style={styles.buttonText}>
-              {loading ? "Loading..." : "Login"}
+              {isLoading ? "Loading..." : "Login"}
             </Text>
           </LinearGradient>
         </TouchableOpacity>

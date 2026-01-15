@@ -1,13 +1,18 @@
-import { useState } from "react";
+import { useAuth } from "../hooks/useAuth";
 import AuthNavigator from "./AuthNavigator";
 import MainTabNavigator from "./MainTabNavigator";
 
 export default function RootNavigator() {
-  const [isLogin, setIsLogin] = useState(false);
+  const { isLogin, isLoading } = useAuth();
+
+  // 🔐 ถ้าข้อมูลยังกำลังโหลด
+  if (isLoading) {
+    return null; // หรือ return loading screen
+  }
 
   // 🔑 ถ้ายังไม่ login → Auth
   if (!isLogin) {
-    return <AuthNavigator setIsLogin={setIsLogin} />;
+    return <AuthNavigator />;
   }
 
   // 🔑 login แล้ว → Navbar (Tab)

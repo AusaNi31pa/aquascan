@@ -1,17 +1,23 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Text, View } from "react-native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
+import AnalysisScreen from "../screens/analysis/AnalysisScreen";
 import CollectionScreen from "../screens/collection/CollectionScreen";
+import HistoryScreen from "../screens/history/HistoryScreen";
+import HomeScreen from "../screens/home/HomeScreen";
+import ResultScreen from "../screens/result/ResultScreen";
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
-/* 🔹 Placeholder ชั่วคราว */
-function EmptyScreen(title: string) {
-  return () => (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <Text style={{ fontSize: 20 }}>{title}</Text>
-    </View>
+// Stack Navigator for Analysis with Result screen
+function AnalysisStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="AnalysisMain" component={AnalysisScreen} />
+      <Stack.Screen name="ResultDetail" component={ResultScreen} />
+    </Stack.Navigator>
   );
 }
 
@@ -41,12 +47,13 @@ export default function MainTabNavigator() {
     >
       {/* 🏠 Home */}
       <Tab.Screen
-        name="Home"
-        component={EmptyScreen("Home")}
+        name="HomeTab"
+        component={HomeScreen}
         options={{
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="home" size={24} color={color} />
           ),
+          tabBarLabel: "Home",
         }}
       />
 
@@ -58,39 +65,43 @@ export default function MainTabNavigator() {
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="inventory" size={24} color={color} />
           ),
+          tabBarLabel: "Collection",
         }}
       />
 
       {/* 📈 Analysis */}
       <Tab.Screen
         name="Analysis"
-        component={EmptyScreen("Analysis")}
+        component={AnalysisStack}
         options={{
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="analytics" size={24} color={color} />
           ),
+          tabBarLabel: "Analysis",
         }}
       />
 
       {/* 🍊 Result */}
       <Tab.Screen
         name="Result"
-        component={EmptyScreen("Result")}
+        component={ResultScreen}
         options={{
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="assessment" size={24} color={color} />
           ),
+          tabBarLabel: "Result",
         }}
       />
 
       {/* ⏱️ History */}
       <Tab.Screen
         name="History"
-        component={EmptyScreen("History")}
+        component={HistoryScreen}
         options={{
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="history" size={24} color={color} />
           ),
+          tabBarLabel: "History",
         }}
       />
     </Tab.Navigator>
