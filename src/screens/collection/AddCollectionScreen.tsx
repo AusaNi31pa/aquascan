@@ -1,5 +1,5 @@
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { useState } from "react";
 import {
   Alert,
@@ -10,11 +10,11 @@ import {
   View,
 } from "react-native";
 
+import { randomUUID } from "expo-crypto";
 import GradientBackground from "../../components/GradientBackground";
-import { db } from "../../firebase/firebase";
-
-const DEFAULT_IMAGE =
-  "https://via.placeholder.com/150"; // 🔁 fallback รูป
+import { auth } from "../../firebase/firebase";
+import { orangeRepository } from "../../firebase/repositories/orangeRepository";
+import { saveImageLocally } from "../../firebase/storage";
 
 export default function AddCollectionScreen({ navigation }: any) {
   const [id, setId] = useState("");
@@ -24,7 +24,37 @@ export default function AddCollectionScreen({ navigation }: any) {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [localImageUri, setLocalImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const buildCreatedAt = () => {
+    if (!date && !time) return undefined;
+    const combined = `${date} ${time}`.trim();
+    const parsed = Date.parse(combined);
+    if (Number.isNaN(parsed)) {
+      return undefined;
+    }
+    return new Date(parsed).toISOString();
+  };
+
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission denied");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      const uri = result.assets[0].uri;
+      setLocalImageUri(uri);
+      setImageUrl(uri);
+    }
+  };
 
   const handleAdd = async () => {
     if (!id || !variety || !weight) {
@@ -35,16 +65,34 @@ export default function AddCollectionScreen({ navigation }: any) {
     try {
       setLoading(true);
 
-      await addDoc(collection(db, "collections"), {
-        id,
-        name: variety,
-        size,
-        weight,
-        date,
-        time,
-        image: imageUrl || DEFAULT_IMAGE,
-        createdAt: serverTimestamp(),
-      });
+      const userId = auth.currentUser?.uid;
+      if (!userId) {
+        Alert.alert("Error", "User not logged in");
+        return;
+      }
+
+      const createdAt = buildCreatedAt();
+
+      // Generate unique orange ID if not provided
+      const orangeId = id || randomUUID();
+
+      let finalImagePath = imageUrl.trim();
+      if (localImageUri) {
+        finalImagePath = await saveImageLocally(
+          localImageUri,
+          `orange_${orangeId}.jpg`,
+        );
+      }
+
+      await orangeRepository.addOrange(
+        userId,
+        variety,
+        Number.parseFloat(weight) || 0,
+        Number.parseFloat(size) || 0,
+        createdAt,
+        orangeId,
+        finalImagePath || undefined,
+      );
 
       Alert.alert("Success", "Data added successfully");
       navigation.goBack();
@@ -112,6 +160,17 @@ export default function AddCollectionScreen({ navigation }: any) {
           autoCapitalize="none"
         />
 
+        <TouchableOpacity onPress={pickImage} activeOpacity={0.85}>
+          <LinearGradient
+            colors={["#FFD270", "#FFA160", "#FD691A"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.secondaryButton}
+          >
+            <Text style={styles.buttonText}>Pick Image</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
         <TouchableOpacity onPress={handleAdd} activeOpacity={0.85}>
           <LinearGradient
             colors={["#FFAC72", "#FF8937", "#FF6900"]}
@@ -151,6 +210,12 @@ const styles = StyleSheet.create({
   button: {
     marginTop: 20,
     padding: 16,
+    borderRadius: 30,
+    alignItems: "center",
+  },
+  secondaryButton: {
+    marginTop: 6,
+    padding: 14,
     borderRadius: 30,
     alignItems: "center",
   },

@@ -2,7 +2,6 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,7 +14,9 @@ import {
 } from "react-native";
 
 import GradientBackground from "../../components/GradientBackground";
-import { auth, db } from "../../firebase/firebase";
+import { auth } from "../../firebase/firebase";
+import { userRepository } from "../../firebase/repositories/userRepository";
+import { deleteImageLocally, saveImageLocally } from "../../firebase/storage";
 
 type UserData = {
   fullName: string;
@@ -43,16 +44,25 @@ export default function ProfileScreen() {
       setUid(user.uid);
 
       try {
-        const userRef = doc(db, "users", user.uid);
-        const snap = await getDoc(userRef);
+        const localUser: any = await userRepository.getUserById(user.uid);
 
-        if (!snap.exists()) {
-          Alert.alert("User not found", "ไม่มีข้อมูลผู้ใช้ใน Firestore");
+        if (!localUser) {
+          setUserData({
+            fullName: user.displayName || "-",
+            username: user.email || "-",
+            email: user.email || "-",
+            avatar: "",
+          });
           setLoading(false);
           return;
         }
 
-        setUserData(snap.data() as UserData);
+        setUserData({
+          fullName: localUser.full_name,
+          username: localUser.username,
+          email: localUser.email,
+          avatar: localUser.avatar || "",
+        });
       } catch (err) {
         console.log("🔥 Load user error:", err);
       } finally {
@@ -82,11 +92,22 @@ export default function ProfileScreen() {
     if (!result.canceled) {
       const imageUri = result.assets[0].uri;
 
-      await updateDoc(doc(db, "users", uid), {
-        avatar: imageUri,
-      });
+      try {
+        // Delete old avatar if exists
+        if (userData?.avatar) {
+          await deleteImageLocally(userData.avatar);
+        }
 
-      setUserData((prev) => (prev ? { ...prev, avatar: imageUri } : prev));
+        // Save new avatar locally
+        const localPath = await saveImageLocally(imageUri, `avatar_${uid}.jpg`);
+
+        await userRepository.updateAvatar(uid, localPath);
+
+        setUserData((prev) => (prev ? { ...prev, avatar: localPath } : prev));
+      } catch (err) {
+        Alert.alert("Error", "Failed to save image");
+        console.log("Save error:", err);
+      }
     }
   };
 
@@ -97,11 +118,14 @@ export default function ProfileScreen() {
     Alert.prompt("Image URL", "ใส่ลิงก์รูป", async (url) => {
       if (!url) return;
 
-      await updateDoc(doc(db, "users", uid), {
-        avatar: url,
-      });
+      try {
+        await userRepository.updateAvatar(uid, url);
 
-      setUserData((prev) => (prev ? { ...prev, avatar: url } : prev));
+        setUserData((prev) => (prev ? { ...prev, avatar: url } : prev));
+      } catch (err) {
+        Alert.alert("Error", "Failed to update avatar");
+        console.log("Update error:", err);
+      }
     });
   };
 

@@ -1,12 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import {
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-} from "firebase/firestore";
+import { useIsFocused } from "@react-navigation/native";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -21,10 +14,11 @@ import {
 
 import AppHeader from "../../components/AppHeader";
 import GradientBackground from "../../components/GradientBackground";
-import { db } from "../../firebase/firebase";
+import { auth } from "../../firebase/firebase";
+import { orangeRepository } from "../../firebase/repositories/orangeRepository";
 
 type CollectionItem = {
-  docId: string;
+  orangeId: string;
   id: string;
   name: string;
   size: string;
@@ -39,39 +33,52 @@ const DEFAULT_IMAGE = "https://via.placeholder.com/150";
 export default function CollectionScreen({ navigation }: any) {
   const [data, setData] = useState<CollectionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const isFocused = useIsFocused();
 
   // 🔍 Search state
   const [searchText, setSearchText] = useState("");
 
   useEffect(() => {
-    const q = query(collection(db, "collections"), orderBy("createdAt", "asc"));
+    const load = async () => {
+      try {
+        const userId = auth.currentUser?.uid;
+        if (!userId) {
+          setData([]);
+          setLoading(false);
+          return;
+        }
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const list: CollectionItem[] = snapshot.docs.map((docSnap) => {
-          const d: any = docSnap.data();
+        const rows: any[] = await orangeRepository.getOrangesByUser(userId);
 
+        const list: CollectionItem[] = rows.map((row) => {
+          const createdAt = row.created_at
+            ? new Date(row.created_at)
+            : new Date();
           return {
-            docId: docSnap.id,
-            id: d.id || docSnap.id,
-            name: d.variety || d.name || "-",
-            size: d.size || "-",
-            weight: d.weight || "-",
-            date: d.date || "-",
-            time: d.time || "-",
-            image: d.image || DEFAULT_IMAGE,
+            orangeId: row.orange_id,
+            id: row.orange_id,
+            name: row.variety || "-",
+            size: String(row.circle_line ?? "-") || "-",
+            weight: String(row.weight ?? "-") || "-",
+            date: createdAt.toLocaleDateString("th-TH"),
+            time: createdAt.toLocaleTimeString("th-TH"),
+            image: row.image_uri || DEFAULT_IMAGE,
           };
         });
 
         setData(list);
+      } catch (err) {
+        console.log("LOAD COLLECTION ERROR:", err);
+      } finally {
         setLoading(false);
-      },
-      () => setLoading(false),
-    );
+      }
+    };
 
-    return unsubscribe;
-  }, []);
+    if (isFocused) {
+      setLoading(true);
+      load();
+    }
+  }, [isFocused]);
 
   // 🔎 Filtered data (ไม่กระทบ data เดิม)
   const filteredData = data.filter((item) => {
@@ -111,7 +118,11 @@ export default function CollectionScreen({ navigation }: any) {
         ) : (
           <ScrollView contentContainerStyle={styles.list}>
             {filteredData.map((item) => (
-              <DataCard key={item.docId} item={item} navigation={navigation} />
+              <DataCard
+                key={item.orangeId}
+                item={item}
+                navigation={navigation}
+              />
             ))}
           </ScrollView>
         )}
@@ -139,7 +150,7 @@ function DataCard({
 }) {
   const handleDelete = async () => {
     try {
-      await deleteDoc(doc(db, "collections", item.docId));
+      await orangeRepository.deleteOrange(item.orangeId);
     } catch (err) {
       console.log("DELETE ERROR:", err);
     }

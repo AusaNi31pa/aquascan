@@ -7,7 +7,7 @@ export default function RootNavigator() {
 
   // 🔑 ถ้ายังไม่ login → Auth
   if (!isLogin) {
-    return <AuthNavigator setIsLogin={setIsLogin} />;
+    return <AuthNavigator setHasEnteredApp={setIsLogin} />;
   }
 
   // 🔑 login แล้ว → Navbar (Tab)

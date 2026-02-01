@@ -1,13 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
-import {
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-} from "firebase/firestore";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,13 +14,14 @@ import {
 
 import AppHeader from "../../components/AppHeader";
 import GradientBackground from "../../components/GradientBackground";
-import { db } from "../../firebase/firebase";
+import { auth } from "../../firebase/firebase";
+import { analysisRepository } from "../../firebase/repositories/analysisRepository";
 
 type HistoryItem = {
-  docId: string;
+  resultId: string;
   id: string;
   name: string;
-  grade: "good" | "medium" | "bad";
+  grade: string;
   sweetness: string;
   date: string;
   time: string;
@@ -39,44 +32,62 @@ const DEFAULT_IMAGE = "https://via.placeholder.com/150";
 
 /* 🔁 แปลงค่าเกรด */
 const gradeText = (grade: HistoryItem["grade"]) => {
-  if (grade === "good") return "Good";
-  if (grade === "medium") return "Medium";
-  return "Bad";
+  const g = grade?.toLowerCase?.() || "";
+  if (g === "good") return "Good";
+  if (g === "medium") return "Medium";
+  if (g === "bad") return "Bad";
+  return grade || "-";
 };
 
 export default function HistoryScreen() {
   const [data, setData] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
 
   // 🔍 Search state
   const [searchText, setSearchText] = useState("");
 
   useEffect(() => {
-    const q = query(collection(db, "history"), orderBy("createdAt", "asc"));
+    const load = async () => {
+      try {
+        const userId = auth.currentUser?.uid;
+        if (!userId) {
+          setData([]);
+          setLoading(false);
+          return;
+        }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list: HistoryItem[] = snapshot.docs.map((docSnap) => {
-        const d: any = docSnap.data();
+        const rows: any[] = await analysisRepository.getAllAnalysis(userId);
+        const list: HistoryItem[] = rows.map((row) => {
+          const analyzedAt = row.analyzed_at
+            ? new Date(row.analyzed_at)
+            : new Date();
+          return {
+            resultId: row.result_id,
+            id: row.orange_id,
+            name: row.variety || "-",
+            grade: row.grade || "-",
+            sweetness: `${row.brix_value ?? "-"}`,
+            date: analyzedAt.toLocaleDateString("th-TH"),
+            time: analyzedAt.toLocaleTimeString("th-TH"),
+            image: row.image_uri || DEFAULT_IMAGE,
+          };
+        });
 
-        return {
-          docId: docSnap.id,
-          id: d.id ?? `ID-${docSnap.id.slice(0, 5)}`,
-          name: d.name ?? "-",
-          grade: d.grade ?? "medium",
-          sweetness: d.sweetness ?? "-",
-          date: d.date ?? "-",
-          time: d.time ?? "-",
-          image: d.image ?? DEFAULT_IMAGE,
-        };
-      });
+        setData(list);
+      } catch (err) {
+        console.log("LOAD HISTORY ERROR:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      setData(list);
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
+    if (isFocused) {
+      setLoading(true);
+      load();
+    }
+  }, [isFocused]);
 
   // 🔎 Filter logic
   const filteredData = data.filter((item) => {
@@ -113,7 +124,7 @@ export default function HistoryScreen() {
         ) : (
           <ScrollView contentContainerStyle={styles.list}>
             {filteredData.map((item) => (
-              <HistoryCard key={item.docId} item={item} />
+              <HistoryCard key={item.resultId} item={item} />
             ))}
           </ScrollView>
         )}
@@ -124,9 +135,9 @@ export default function HistoryScreen() {
 
 /* 🧩 Card */
 function HistoryCard({ item }: { item: HistoryItem }) {
-  const handleDelete = async (docId: string) => {
+  const handleDelete = async (resultId: string) => {
     try {
-      await deleteDoc(doc(db, "history", docId));
+      await analysisRepository.deleteAnalysis(resultId);
     } catch (err) {
       console.log("DELETE ERROR:", err);
     }
@@ -136,7 +147,7 @@ function HistoryCard({ item }: { item: HistoryItem }) {
     <View style={styles.card}>
       <View style={styles.cardActions}>
         {/* ❌ เอา Edit ออก เหลือแค่ Delete */}
-        <TouchableOpacity onPress={() => handleDelete(item.docId)}>
+        <TouchableOpacity onPress={() => handleDelete(item.resultId)}>
           <MaterialIcons name="delete" size={18} color="red" />
         </TouchableOpacity>
       </View>
