@@ -16,8 +16,9 @@ import * as ImagePicker from "expo-image-picker";
 
 // 🔥 Firebase
 import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { auth, db } from "../../firebase/firebase";
+import { auth } from "../../firebase/firebase";
+import { userRepository } from "../../firebase/repositories/userRepository";
+import { saveImageLocally } from "../../firebase/storage";
 
 export default function RegisterScreen({ navigation }: any) {
   const [fullName, setFullName] = useState("");
@@ -70,14 +71,20 @@ export default function RegisterScreen({ navigation }: any) {
 
       const user = userCredential.user;
 
-      // 🧾 Save profile to Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        fullName: fullName.trim(),
-        username: username.trim(),
-        email: email.toLowerCase().trim(),
-        avatar: avatar || "",
-        createdAt: serverTimestamp(),
-      });
+      // 🧾 Save profile to SQLite (avatar saved locally)
+      let avatarPath = "";
+      if (avatar) {
+        avatarPath = await saveImageLocally(avatar, `avatar_${user.uid}.jpg`);
+      }
+
+      await userRepository.createUser(
+        user.uid,
+        username.trim(),
+        fullName.trim(),
+        email.toLowerCase().trim(),
+        "",
+        avatarPath,
+      );
 
       // ❗ Logout หลังสมัครเสร็จ
       await signOut(auth);

@@ -1,7 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -15,10 +14,11 @@ import {
 } from "react-native";
 import AppHeader from "../../components/AppHeader";
 import GradientBackground from "../../components/GradientBackground";
-import { db } from "../../firebase/firebase";
+import { auth } from "../../firebase/firebase";
+import { orangeRepository } from "../../firebase/repositories/orangeRepository";
 
 type CollectionItem = {
-  docId: string;
+  orangeId: string;
   id: string;
   name: string;
   size: string;
@@ -78,33 +78,47 @@ export default function AnalysisScreen() {
   const [data, setData] = useState<CollectionItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<CollectionItem | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const isFocused = useIsFocused();
 
   // 🔍 Search state
   const [searchText, setSearchText] = useState("");
 
   useEffect(() => {
-    const q = query(collection(db, "collections"), orderBy("createdAt", "asc"));
+    const load = async () => {
+      try {
+        const userId = auth.currentUser?.uid;
+        if (!userId) {
+          setData([]);
+          return;
+        }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list: CollectionItem[] = snapshot.docs.map((doc) => {
-        const d: any = doc.data();
-        return {
-          docId: doc.id,
-          id: d.id || doc.id,
-          name: d.name || "-",
-          size: d.size || "0",
-          weight: d.weight || "0",
-          date: d.date || "-",
-          time: d.time || "-",
-          image: d.image,
-        };
-      });
+        const rows: any[] = await orangeRepository.getOrangesByUser(userId);
+        const list: CollectionItem[] = rows.map((row) => {
+          const createdAt = row.created_at
+            ? new Date(row.created_at)
+            : new Date();
+          return {
+            orangeId: row.orange_id,
+            id: row.orange_id,
+            name: row.variety || "-",
+            size: String(row.circle_line ?? "0"),
+            weight: String(row.weight ?? "0"),
+            date: createdAt.toLocaleDateString("th-TH"),
+            time: createdAt.toLocaleTimeString("th-TH"),
+            image: row.image_uri || "https://via.placeholder.com/150",
+          };
+        });
 
-      setData(list);
-    });
+        setData(list);
+      } catch (err) {
+        console.log("LOAD ORANGES ERROR:", err);
+      }
+    };
 
-    return unsubscribe;
-  }, []);
+    if (isFocused) {
+      load();
+    }
+  }, [isFocused]);
 
   // 🔎 Filter logic (ไม่กระทบ data เดิม)
   const filteredData = data.filter((item) => {
@@ -153,12 +167,15 @@ export default function AnalysisScreen() {
       setIsAnalyzing(false);
 
       navigation.navigate("Result", {
+        orangeId: selectedItem.orangeId,
         image: selectedItem.image,
         variety: selectedItem.name,
         grade: result.grade,
         sweetness: result.sweetness,
         date: selectedItem.date,
         time: selectedItem.time,
+        size: selectedItem.size,
+        weight: selectedItem.weight,
       });
     }, 2000);
   };
@@ -184,9 +201,9 @@ export default function AnalysisScreen() {
         <ScrollView contentContainerStyle={styles.list}>
           {filteredData.map((item) => (
             <CollectedItemCard
-              key={item.docId}
+              key={item.orangeId}
               item={item}
-              selected={selectedItem?.docId === item.docId}
+              selected={selectedItem?.orangeId === item.orangeId}
               onPress={() => setSelectedItem(item)}
             />
           ))}

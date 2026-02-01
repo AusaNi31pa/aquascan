@@ -12,6 +12,7 @@ import {
 
 import GradientBackground from "../../components/GradientBackground";
 import { auth } from "../../firebase/firebase";
+import { userRepository } from "../../firebase/repositories/userRepository";
 
 export default function LoginScreen({
   navigation,
@@ -32,7 +33,27 @@ export default function LoginScreen({
     try {
       setLoading(true);
 
-      await signInWithEmailAndPassword(auth, username, password);
+      const credential = await signInWithEmailAndPassword(
+        auth,
+        username,
+        password,
+      );
+
+      const user = credential.user;
+      if (user) {
+        const existing: any = await userRepository.getUserById(user.uid);
+        if (!existing) {
+          const email = user.email || username;
+          const fallbackName = email.split("@")[0] || "user";
+          await userRepository.createUser(
+            user.uid,
+            fallbackName,
+            fallbackName,
+            email,
+            "",
+          );
+        }
+      }
 
       // ✅ บอก App ว่าเข้าแอปแล้ว → Navbar จะโผล่
       setHasEnteredApp(true);
@@ -110,7 +131,6 @@ export default function LoginScreen({
         >
           <Text style={styles.linkText}>Create New Account</Text>
         </TouchableOpacity>
-
       </View>
     </GradientBackground>
   );
